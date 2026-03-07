@@ -11,7 +11,7 @@
    To add a mission type: call MissionRegistry.register() once.
    ================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap');
+@import url('https://fonts.loli.net/css2?family=Nunito:wght@700;800;900&display=swap');
 
 :root {
   --bg:           #08081a;
@@ -778,6 +778,30 @@ body::after {
 }
 .btn-clear-lb:hover { color: var(--neon-red); border-color: var(--neon-red); }
 
+/* ── QR Code widget ── */
+#qr-widget {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+#qr-widget img {
+  display: block;
+  border-radius: 10px;
+  border: 3px solid rgba(245,196,0,0.45);
+  box-shadow: 0 0 18px rgba(245,196,0,0.25);
+  background: #fff;
+  padding: 5px;
+}
+.qr-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 </style>
 </head>
 <body>
@@ -797,6 +821,12 @@ body::after {
 
   <button class="btn-start" id="btn-start" onclick="showNameEntry()" disabled>▶ &nbsp;PLAY</button>
   <div id="loading-status">LOADING ASSETS…</div>
+
+  <div id="qr-widget">
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAACUAQAAAABdRz15AAABXElEQVR4nM1WUYodMQyTw/4rN+j9jzU3kE+gIs9+tezH4oU28GZeAiNkS7ZTxp+rz19HwL87q6pbBdyqmg12eLRB3PtQutlggwcTpCA4yLM5C7yPeV5QbRS/9e358sxs3upPrc8Oz0I/LIh3NtjglQt4w8xqgM9OjyzIyj9mo62+GnXzMqWdvjDJJI0J2hDX/CTCSrQCsOYHQwJNWQl5yy8ZtBMu34C19rNvNSyZbWhZvxDpMXKawd4v9mApzEQs9f0Aru/jtISrff1iFBjXeCRZ+0UEgzqpSy61rQ+EH5K5wK35ReCQTNF5X2+IT1LBL9qan6cVcFpWWG7nRxuNq2al8DJCzoofZ7LJ4xeE5vmB/ow4UEzBaasHXrMkd+S+3zshv4ZhxNH+fmAld/Nb4p151ltzqZDl/D3v6z490/f2up8yYzeTMsmbOXJ+4H7QLjf7F6DV/bT+8/vub39UCrgQDGYkAAAAAElFTkSuQmCC"
+         alt="Scan to play" width="112" height="112">
+    <div class="qr-label">Scan to play on your phone</div>
+  </div>
 </div>
 
 
@@ -1948,5 +1978,6 @@ function clearLeaderboard()     { GameController.clearLeaderboard(); }
    ================================================================ */
 GameController.init();
 </script>
+
 </body>
 </html>

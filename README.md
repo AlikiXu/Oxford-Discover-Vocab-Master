@@ -1,7 +1,7 @@
 # Oxford Discover Vocab Master 🎮
 
 A single-file, HTML5 vocabulary game built for the **Oxford Discover** series.
-Drop it into any folder alongside your image and audio assets — no build tools, no server, no dependencies.
+Drop it into any folder alongside your image and audio assets — no build tools, no server, no framework dependencies.
 
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white)
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white)
@@ -40,6 +40,7 @@ Drop it into any folder alongside your image and audio assets — no build tools
 | **Extensible Missions** | `MissionRegistry.register()` lets you add new question formats with one isolated call — the core engine is never touched |
 | **Cloud-Ready** | `CloudManager` wraps all persistence; connect a real API by filling two fields and uncommenting four lines |
 | **Leaderboard & Ranks** | Per-unit local leaderboard (top 20), Hall of Fame screen, Personal Best banner, S/A/B/C rank system, combo streak badges |
+| **QR Code** | Embedded as a base64 data URI on the splash screen — works offline, no external request, scan to open on any mobile device |
 
 ---
 
@@ -317,6 +318,8 @@ Page opens
 
 > The game is fully playable on modern **mobile browsers** (iOS Safari 14+, Chrome for Android).
 > On older browsers, sound effects degrade gracefully to silence and TTS degrades to a beep — gameplay is never blocked.
+
+> **Note on fonts:** The game loads the Nunito typeface from `fonts.loli.net` (a Chinese mirror of Google Fonts) instead of `fonts.googleapis.com`, which is blocked in mainland China. The font uses `display=swap`, so the game loads and plays immediately with the system fallback font even if the font request fails or is slow.
 
 ---
 
