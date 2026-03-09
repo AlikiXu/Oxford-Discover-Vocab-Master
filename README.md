@@ -39,7 +39,7 @@ Drop it into any folder alongside your image and audio assets — no build tools
 | **Three Mission Types** | Visual Match (image → word), Sonic Match (audio → image), Spell Match (audio → word) |
 | **Extensible Missions** | `MissionRegistry.register()` lets you add new question formats with one isolated call — the core engine is never touched |
 | **Cloud Backend** | `CloudManager` stores all scores in a Supabase PostgreSQL database (`game_scores` table) — live Hall of Fame across all devices |
-| **Leaderboard & Ranks** | Cloud leaderboard (top 20 from Supabase), Hall of Fame screen, Personal Best banner (local), S/A/B/C rank system, combo streak badges |
+| **Leaderboard & Ranks** | Cloud leaderboard (top 20 from Supabase), sorted by score then avg response time for tie-breaking, Hall of Fame screen, Personal Best banner (local), S/A/B/C rank system, combo streak badges |
 | **QR Code** | Embedded as a base64 data URI on the splash screen — works offline, no external request, scan to open on any mobile device |
 
 ---
@@ -257,8 +257,9 @@ function getSupabase() {
 | Action | What happens |
 |---|---|
 | Game ends (score > 0) | `CloudManager.saveScore()` inserts one row into `game_scores` |
-| Results screen loads | `CloudManager.fetchLeaderboard()` queries top 20 rows ordered by `total_score DESC` |
+| Results screen loads | `CloudManager.fetchLeaderboard()` queries top 20 rows ordered by `total_score DESC`, then `avg_time ASC` as a tie-breaker |
 | Hall of Fame opened | Same `fetchLeaderboard()` call, rendered in full |
+| Leaderboard rows displayed | Each row shows: position, name, score, avg response time, rank — so tied students can see who was faster |
 | Personal Best banner | Stored locally in `localStorage` — no cloud dependency |
 
 ### Deploying a new unit

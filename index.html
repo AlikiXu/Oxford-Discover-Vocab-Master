@@ -612,6 +612,7 @@ body::after {
 .mini-lb-pos { font-size: 1.1rem; min-width: 28px; text-align: center; }
 .mini-lb-name { flex: 1; }
 .mini-lb-score { color: var(--neon-cyan); font-weight: 900; }
+.mini-lb-avg   { font-size: 0.75rem; color: var(--text-dim); min-width: 36px; text-align: right; }
 .mini-lb-rank  { font-size: 0.75rem; color: var(--text-dim); margin-left: 4px; }
 
 /* ══════════════════════════════════════════
@@ -623,7 +624,7 @@ body::after {
   font-size: clamp(1.6rem, 6vw, 2.4rem);
   font-weight: 900;
   color: #f5c400;
-  text-shadow: 3px 3px 0 #c09500;
+  text-shadow: 1px 2px 0 #9a7400;
   text-align: center;
 }
 .name-entry-sub {
@@ -704,7 +705,7 @@ body::after {
   font-size: clamp(1.4rem, 5vw, 2rem);
   font-weight: 900;
   color: #f5c400;
-  text-shadow: 3px 3px 0 #c09500;
+  text-shadow: 1px 2px 0 #9a7400;
   margin-top: 4px;
 }
 .hof-subtitle {
@@ -737,6 +738,7 @@ body::after {
 .hof-pos   { font-size: 1.4rem; min-width: 36px; text-align: center; }
 .hof-name  { flex: 1; font-size: 1rem; font-weight: 900; }
 .hof-score { font-size: 1.05rem; font-weight: 900; color: var(--neon-cyan); }
+.hof-avg   { font-size: 0.75rem; color: var(--text-dim); min-width: 40px; text-align: right; }
 .hof-rank-chip {
   font-size: 0.7rem; font-weight: 900;
   padding: 3px 8px; border-radius: 20px;
@@ -1061,6 +1063,7 @@ const CloudManager = {
       .from("game_scores")
       .select("username, total_score, accuracy, avg_time")
       .order("total_score", { ascending: false })
+      .order("avg_time",    { ascending: true })
       .limit(20)
       .then(({ data, error }) => {
         if (error) {
@@ -1068,9 +1071,10 @@ const CloudManager = {
           return [];
         }
         return (data || []).map((row) => ({
-          name: row.username,
-          score: row.total_score,
-          rank: GameEngine.getRank(row.accuracy ?? 0, row.avg_time ?? 0),
+          name:    row.username,
+          score:   row.total_score,
+          avgTime: row.avg_time ?? 0,
+          rank:    GameEngine.getRank(row.accuracy ?? 0, row.avg_time ?? 0),
         }));
       });
   },
@@ -1497,6 +1501,7 @@ const UIRenderer = {
         <span class="mini-lb-pos">${HOF_MEDALS[i] || (i + 1)}</span>
         <span class="mini-lb-name">${entry.name}</span>
         <span class="mini-lb-score">${entry.score}</span>
+        <span class="mini-lb-avg">${entry.avgTime ? entry.avgTime.toFixed(1) + "s" : "—"}</span>
         <span class="mini-lb-rank">${entry.rank}</span>
       `;
       el.appendChild(row);
@@ -1525,6 +1530,7 @@ const UIRenderer = {
         <span class="hof-pos">${HOF_MEDALS[i] || (i + 1)}</span>
         <span class="hof-name">${entry.name}</span>
         <span class="hof-score">${entry.score} pts</span>
+        <span class="hof-avg">${entry.avgTime ? entry.avgTime.toFixed(1) + "s" : "—"}</span>
         <span class="hof-rank-chip" style="color:${RANK_COLORS[entry.rank] || "#fff"}">${entry.rank}</span>
       `;
       list.appendChild(row);
