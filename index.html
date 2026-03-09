@@ -803,6 +803,7 @@ body::after {
 }
 
 </style>
+<script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -903,15 +904,35 @@ body::after {
   </div>
 </div>
 
-
 <script>
+/* ================================================================
+   Supabase client — lazy initialisation
+   The SDK is loaded async in <head>. The client is created on the
+   first CloudManager call (always after the game ends, so the SDK
+   has had plenty of time to load). The game start-up is never blocked.
+   ================================================================ */
+const SUPABASE_URL     = "https://dvnvnplwrvnmoiqfwfsw.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2bnZucGx3cnZubW9pcWZ3ZnN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMzI5NjEsImV4cCI6MjA4ODYwODk2MX0.1NSt-X8kiN_slDbdAZxTF1W0zLwjkZEE-ReL4TC_r74";
+let _sbClient = null;
+function getSupabase() {
+  if (_sbClient) return _sbClient;
+  try {
+    if (window.supabase && window.supabase.createClient) {
+      _sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+  } catch (e) {
+    console.warn("Supabase init failed — leaderboard unavailable:", e);
+  }
+  return _sbClient;
+}
+
 /* ================================================================
    VOCAB MASTER — Modular Web App Template
    ─────────────────────────────────────────────────────────────────
    ARCHITECTURE OVERVIEW
    ─────────────────────────────────────────────────────────────────
    GAME_CONFIG      — single source of truth for all content & rules
-   CloudManager     — data persistence layer (local + cloud-ready)
+   CloudManager     — data persistence layer (Supabase game_scores)
    AssetLoader      — preloads img/audio before game starts
    GameEngine       — pure logic functions, zero DOM access
    MissionRegistry  — open registry; add new mission types here
@@ -996,82 +1017,67 @@ const emoji = w => GAME_CONFIG.EMOJI[w.toLowerCase()] || "❓";
 
 /* ================================================================
    2. CLOUD MANAGER
-   Handles all data persistence. Swap the fetch stubs below when
-   a real backend is ready — no other file changes needed.
+   Hall of Fame stored in Supabase game_scores table.
+   Personal best remains in localStorage.
    ================================================================ */
 const CloudManager = {
 
-  /* ── Cloud credentials (leave empty for local-only mode) ── */
-  API_URL: "",
-  API_KEY: "",
-
-  /* ── Storage key helpers ── */
-  _lbKey() { return `vocabMasterLB_${GAME_CONFIG.META.STORAGE_SUFFIX}`; },
   _pbKey() { return `vocabMasterPB_${GAME_CONFIG.META.STORAGE_SUFFIX}`; },
 
-  /* ── Personal Best ── */
+  /* ── Personal Best (local only) ── */
   getPB()   { try { return JSON.parse(localStorage.getItem(this._pbKey())); } catch (_) { return null; } },
   savePB(d) { try { localStorage.setItem(this._pbKey(), JSON.stringify(d)); } catch (_) {} },
 
-  /* ── Internal local-cache helpers ── */
-  _getLocal()    { try { return JSON.parse(localStorage.getItem(this._lbKey()) || "[]"); } catch (_) { return []; } },
-  _setLocal(lb)  { try { localStorage.setItem(this._lbKey(), JSON.stringify(lb)); } catch (_) {} },
-
   /**
-   * saveScore(name, score, rank, accuracy)
-   * Writes the entry to local cache and, when API_URL is set,
-   * queues a cloud sync (see stub below).
-   * Returns the updated leaderboard array synchronously.
+   * saveScore(name, score, rank, accuracy, totalTime, avgTime)
+   * Inserts into Supabase game_scores. Returns a Promise that resolves when done.
    */
-  saveScore(name, score, rank, accuracy = 0) {
-    const entry = { name, score, rank, accuracy, date: Date.now() };
-    const lb    = this._getLocal();
-    lb.push(entry);
-    lb.sort((a, b) => b.score - a.score);
-    lb.splice(GAME_CONFIG.SETTINGS.MAX_LB_SIZE);
-    this._setLocal(lb);
-
-    if (this.API_URL) {
-      console.log("Syncing to cloud…", { endpoint: this.API_URL, payload: entry });
-      /* ── Uncomment when backend is ready ──────────────────────
-      fetch(this.API_URL + "/scores", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.API_KEY}`,
-        },
-        body: JSON.stringify(entry),
-      }).catch(err => console.warn("Cloud sync failed:", err));
-      ─────────────────────────────────────────────────────────── */
-    }
-
-    return lb;
+  saveScore(name, score, rank, accuracy = 0, totalTime = 0, avgTime = 0) {
+    const sb = getSupabase();
+    if (!sb) return Promise.resolve();
+    return sb
+      .from("game_scores")
+      .insert({
+        username: name,
+        total_score: score,
+        accuracy: Number(accuracy),
+        total_time: Number(totalTime),
+        avg_time: Number(avgTime),
+      })
+      .then(({ error }) => {
+        if (error) console.warn("Cloud save failed:", error);
+      });
   },
 
   /**
    * fetchLeaderboard()
-   * Returns a Promise that resolves with the leaderboard array.
-   * Falls back to local cache; when API_URL is set, fetches remotely.
+   * Returns a Promise that resolves with the top 20 scores from Supabase,
+   * ordered by total_score descending. Each entry: { name, score, rank }.
    */
   fetchLeaderboard() {
-    const cached = this._getLocal();
-
-    if (this.API_URL) {
-      console.log("Fetching leaderboard from cloud…", this.API_URL);
-      /* ── Uncomment when backend is ready ──────────────────────
-      return fetch(this.API_URL + "/leaderboard", {
-        headers: { "Authorization": `Bearer ${this.API_KEY}` },
-      })
-        .then(r => r.json())
-        .catch(() => cached);
-      ─────────────────────────────────────────────────────────── */
-    }
-
-    return Promise.resolve(cached);
+    const sb = getSupabase();
+    if (!sb) return Promise.resolve([]);
+    return sb
+      .from("game_scores")
+      .select("username, total_score, accuracy, avg_time")
+      .order("total_score", { ascending: false })
+      .limit(20)
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn("Leaderboard fetch failed:", error);
+          return [];
+        }
+        return (data || []).map((row) => ({
+          name: row.username,
+          score: row.total_score,
+          rank: GameEngine.getRank(row.accuracy ?? 0, row.avg_time ?? 0),
+        }));
+      });
   },
 
   clearAll() {
-    try { localStorage.removeItem(this._lbKey()); } catch (_) {}
+    /* Leaderboard is cloud-only; only clear local PB cache if desired */
+    try { localStorage.removeItem(this._pbKey()); } catch (_) {}
   },
 };
 
@@ -1919,6 +1925,11 @@ const GameController = {
     const name  = GameState.currentPlayer || "Player";
     const score = GameState.score;
 
+    /* total_time: sum of all response times in seconds (speedLog is in ms) */
+    const totalTimeSec = GameState.speedLog.length > 0
+      ? +(GameState.speedLog.reduce((a, b) => a + b, 0) / 1000).toFixed(1)
+      : 0;
+
     document.getElementById("res-player-name").textContent = `${name}  ·  ${rank} Rank`;
     document.getElementById("res-score").textContent       = score;
     document.getElementById("res-accuracy").textContent    = accuracy + "%";
@@ -1928,13 +1939,20 @@ const GameController = {
     rankEl.textContent = rank;
     rankEl.className   = `rank-badge rank-${rank}`;
 
-    /* Save score and immediately get the updated leaderboard */
-    let lb;
+    /* Save score to Supabase (async), then fetch leaderboard for mini lb */
+    const updateMiniLb = () =>
+      CloudManager.fetchLeaderboard().then(fetched =>
+        UIRenderer.buildMiniLb(name, score, fetched)
+      );
     if (score > 0 && GameState.currentPlayer) {
-      lb = CloudManager.saveScore(GameState.currentPlayer, score, rank, accuracy);
+      CloudManager.saveScore(GameState.currentPlayer, score, rank, accuracy, totalTimeSec, avgSec)
+        .then(updateMiniLb)
+        .catch(() => updateMiniLb());
+    } else {
+      updateMiniLb();
     }
 
-    /* Personal Best banner */
+    /* Personal Best banner (local) */
     const pb       = CloudManager.getPB();
     const pbBanner = document.getElementById("pb-banner");
     if (!pb || score > pb.score) {
@@ -1944,15 +1962,6 @@ const GameController = {
     } else {
       pbBanner.textContent   = `Your Best: ${pb.score} pts  (${pb.rank})`;
       pbBanner.style.display = "";
-    }
-
-    /* Mini leaderboard — use saved lb if available, else fetch */
-    if (lb) {
-      UIRenderer.buildMiniLb(name, score, lb);
-    } else {
-      CloudManager.fetchLeaderboard().then(fetched =>
-        UIRenderer.buildMiniLb(name, score, fetched)
-      );
     }
 
     UIRenderer.showScreen("results");

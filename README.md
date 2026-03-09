@@ -38,8 +38,8 @@ Drop it into any folder alongside your image and audio assets — no build tools
 | **Visual Feedback System** | Particle burst, glitch flash, dual-coding feedback overlay, combo badge, and urgent timer pulse — all pure CSS animations |
 | **Three Mission Types** | Visual Match (image → word), Sonic Match (audio → image), Spell Match (audio → word) |
 | **Extensible Missions** | `MissionRegistry.register()` lets you add new question formats with one isolated call — the core engine is never touched |
-| **Cloud-Ready** | `CloudManager` wraps all persistence; connect a real API by filling two fields and uncommenting four lines |
-| **Leaderboard & Ranks** | Per-unit local leaderboard (top 20), Hall of Fame screen, Personal Best banner, S/A/B/C rank system, combo streak badges |
+| **Cloud Backend** | `CloudManager` stores all scores in a Supabase PostgreSQL database (`game_scores` table) — live Hall of Fame across all devices |
+| **Leaderboard & Ranks** | Cloud leaderboard (top 20 from Supabase), Hall of Fame screen, Personal Best banner (local), S/A/B/C rank system, combo streak badges |
 | **QR Code** | Embedded as a base64 data URI on the splash screen — works offline, no external request, scan to open on any mobile device |
 
 ---
@@ -92,7 +92,7 @@ The entire game lives in **`index.html`** and is organised into seven logical la
 
 ```
 GAME_CONFIG        ← all content & settings (edit this to change the game)
-CloudManager       ← data persistence (local + cloud-ready)
+CloudManager       ← data persistence (Supabase game_scores table)
 AssetLoader        ← preloads img/audio before game starts
 GameEngine         ← pure logic — zero DOM access
 MissionRegistry    ← open registry of question-type definitions
@@ -118,7 +118,7 @@ META: {
 },
 ```
 
-> ⚠️ **Always change `STORAGE_SUFFIX`** when deploying a new unit. This gives each unit its own isolated leaderboard in `localStorage` so Unit 5 and Unit 6 scores never mix.
+> ⚠️ **Always change `STORAGE_SUFFIX`** when deploying a new unit. This gives each unit its own isolated **Personal Best** record in `localStorage`. The Hall of Fame leaderboard lives in Supabase and is scoped by whatever scores are inserted — all units share the same `game_scores` table, so keep unit names distinct in player usernames if needed.
 
 ### 2. Replace the word list
 
@@ -211,44 +211,59 @@ GAME_CONFIG.WORDS.forEach(item =>
 
 ## Cloud Backend
 
-`CloudManager` is the **sole owner** of all data reads and writes. By default it uses `localStorage`. Connecting a real API requires two values and four uncommented lines — nothing else in the codebase changes.
+`CloudManager` is the **sole owner** of all data reads and writes. Scores are stored in a **Supabase** PostgreSQL database and the Hall of Fame is fetched live from the cloud on every game end and leaderboard view.
 
-### Step 1 — Set your credentials
+### Supabase table schema
 
-```js
-const CloudManager = {
-  API_URL: "https://api.your-backend.com",  // ← fill in
-  API_KEY: "your-secret-key",               // ← fill in
-  ...
-};
+The game writes to a table called `game_scores` with the following columns:
+
+| Column | Type | Notes |
+|---|---|---|
+| `username` | `text` | Player's entered name |
+| `total_score` | `int8` | Final point total |
+| `accuracy` | `float8` | Percentage of correct answers (0–100) |
+| `total_time` | `float8` | Sum of all response times in seconds |
+| `avg_time` | `float8` | Average response time per question in seconds |
+
+### SDK and credentials
+
+The Supabase JS SDK is loaded asynchronously from a CDN in `<head>` so it never blocks the game from starting:
+
+```html
+<script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 ```
 
-### Step 2 — Uncomment the fetch stubs
-
-Inside `saveScore()`, uncomment the POST block:
+The client is initialised **lazily** at the top of the `<script>` block. `getSupabase()` creates the client on the first call (which is always after the game ends, giving the SDK plenty of time to load in the background):
 
 ```js
-fetch(this.API_URL + "/scores", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${this.API_KEY}`,
-  },
-  body: JSON.stringify(entry),
-}).catch(err => console.warn("Cloud sync failed:", err));
+const SUPABASE_URL      = "https://<your-project-ref>.supabase.co";
+const SUPABASE_ANON_KEY = "<your-anon-key>";
+let _sbClient = null;
+function getSupabase() {
+  if (_sbClient) return _sbClient;
+  try {
+    if (window.supabase && window.supabase.createClient) {
+      _sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+  } catch (e) {
+    console.warn("Supabase init failed — leaderboard unavailable:", e);
+  }
+  return _sbClient;
+}
 ```
 
-Inside `fetchLeaderboard()`, uncomment the GET block:
+### How data flows
 
-```js
-return fetch(this.API_URL + "/leaderboard", {
-  headers: { "Authorization": `Bearer ${this.API_KEY}` },
-})
-  .then(r => r.json())
-  .catch(() => cached); // falls back to local cache on any network failure
-```
+| Action | What happens |
+|---|---|
+| Game ends (score > 0) | `CloudManager.saveScore()` inserts one row into `game_scores` |
+| Results screen loads | `CloudManager.fetchLeaderboard()` queries top 20 rows ordered by `total_score DESC` |
+| Hall of Fame opened | Same `fetchLeaderboard()` call, rendered in full |
+| Personal Best banner | Stored locally in `localStorage` — no cloud dependency |
 
-> The rest of the game already calls `CloudManager.fetchLeaderboard()` via `.then()` and handles the Promise whether it resolves locally or remotely — no further changes needed.
+### Deploying a new unit
+
+Replace `SUPABASE_URL` and `SUPABASE_ANON_KEY` with the credentials for your project. All other game logic remains unchanged.
 
 ---
 
@@ -314,7 +329,8 @@ Page opens
 | Web Audio API (sound effects) | 35+ | 25+ | 14.1+ | 79+ |
 | Web Speech API (TTS fallback) | 33+ | 49+ | 7+ | 14+ |
 | `Element.animate()` (particles) | 36+ | 48+ | 13.1+ | 79+ |
-| `localStorage` | All modern | All modern | All modern | All modern |
+| `localStorage` (Personal Best only) | All modern | All modern | All modern | All modern |
+| Supabase JS SDK (leaderboard) | 80+ | 75+ | 14+ | 80+ |
 
 > The game is fully playable on modern **mobile browsers** (iOS Safari 14+, Chrome for Android).
 > On older browsers, sound effects degrade gracefully to silence and TTS degrades to a beep — gameplay is never blocked.
