@@ -1206,9 +1206,11 @@ const Snd = (() => {
     try {
       const a = new Audio(src);
       if (onEnd) a.addEventListener("ended", onEnd, { once: true });
-      /* 404 or decode error → TTS fallback */
-      a.addEventListener("error", () => speak(word, onEnd));
-      a.play().catch(() => speak(word, onEnd));
+      /* Guard: only call TTS once even if both error and catch fire */
+      let ttsUsed = false;
+      const fallback = () => { if (!ttsUsed) { ttsUsed = true; speak(word, onEnd); } };
+      a.addEventListener("error", fallback);
+      a.play().catch(fallback);
     } catch (_) { speak(word, onEnd); }
   }
 
@@ -1217,7 +1219,44 @@ const Snd = (() => {
     else speak(item.word, onEnd);
   }
 
-  return { correct, wrong, combo, speak, playWord };
+  /**
+   * unlock()
+   * Called once on the first real user gesture (pressing GO).
+   * iOS Safari and Android Chrome require a direct user-gesture interaction
+   * before any Audio.play() or AudioContext call is permitted.
+   * Playing a silent audio and resuming the AudioContext here "unlocks"
+   * the audio system for the entire session.
+   */
+  function unlock() {
+    /* Resume Web Audio context (needed for beep sounds on mobile) */
+    try {
+      const ac = getCtx();
+      if (ac.state === "suspended") ac.resume();
+    } catch (_) {}
+
+    /* Unlock HTMLAudioElement playback (needed for .mp3 files on iOS) */
+    try {
+      const s = new Audio();
+      /* Smallest valid silent WAV: 44-byte RIFF header, 0 audio frames */
+      s.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+      s.volume = 0;
+      s.play().then(() => s.pause()).catch(() => {});
+    } catch (_) {}
+
+    /* Pre-warm the iOS TTS engine so first-use delay is eliminated.
+       iOS SpeechSynthesis takes 2-5 s to initialise on the very first
+       call; speaking a silent utterance here during the user gesture
+       means the engine is ready before the first audio mission. */
+    try {
+      if (window.speechSynthesis) {
+        const warmup = new SpeechSynthesisUtterance(" ");
+        warmup.volume = 0;
+        window.speechSynthesis.speak(warmup);
+      }
+    } catch (_) {}
+  }
+
+  return { correct, wrong, combo, speak, playWord, unlock };
 })();
 
 
@@ -1721,6 +1760,7 @@ const GameController = {
     const val = document.getElementById("player-name-input").value.trim();
     if (!val) return;
     GameState.currentPlayer = val;
+    Snd.unlock(); /* unlock iOS/Android audio on the confirmed user gesture */
     this.startGame();
   },
 
@@ -1788,15 +1828,19 @@ const GameController = {
     const btn = document.getElementById("audio-btn");
     if (target.audio) {
       const a = new Audio(target.audio);
-      a.addEventListener("error", () => {
-        /* 404 or decode error → TTS fallback */
+      /* Guard: only trigger TTS once even if both error and catch fire */
+      let ttsUsed = false;
+      const fallback = () => {
+        if (ttsUsed) return;
+        ttsUsed = true;
         Snd.speak(target.word);
         if (btn) btn.classList.remove("invite");
-      });
+      };
+      a.addEventListener("error", fallback);
       const p = a.play();
       if (p !== undefined) {
         p.then(() => { if (btn) btn.classList.remove("invite"); })
-         .catch(() => Snd.speak(target.word)); // autoplay blocked → TTS
+         .catch(fallback);
       }
     } else {
       Snd.speak(target.word);
