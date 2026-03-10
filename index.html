@@ -1094,6 +1094,10 @@ const CloudManager = {
    ================================================================ */
 const AssetLoader = {
 
+  /* Keyed by src path — holds the pre-loaded Audio elements so playback
+     can reuse them without a fresh download or MP3 decode on every question. */
+  audioCache: {},
+
   preload(onProgress, onComplete) {
     const assets = [];
     GAME_CONFIG.WORDS.forEach(item => {
@@ -1150,6 +1154,7 @@ const AssetLoader = {
         au.addEventListener("error", once, { once: true });
         au.preload = "auto";
         au.src     = src;
+        AssetLoader.audioCache[src] = au; /* keep alive for reuse */
         setTimeout(once, 3000);
       }
     });
@@ -1204,12 +1209,13 @@ const Snd = (() => {
   function playFile(src, word, onEnd) {
     if (!src) { speak(word, onEnd); return; }
     try {
-      const a = new Audio(src);
+      const a = AssetLoader.audioCache[src] || new Audio(src);
+      a.currentTime = 0; /* reset in case already played */
       if (onEnd) a.addEventListener("ended", onEnd, { once: true });
       /* Guard: only call TTS once even if both error and catch fire */
       let ttsUsed = false;
       const fallback = () => { if (!ttsUsed) { ttsUsed = true; speak(word, onEnd); } };
-      a.addEventListener("error", fallback);
+      a.addEventListener("error", fallback, { once: true });
       a.play().catch(fallback);
     } catch (_) { speak(word, onEnd); }
   }
@@ -1827,7 +1833,8 @@ const GameController = {
   autoPlayWord(target) {
     const btn = document.getElementById("audio-btn");
     if (target.audio) {
-      const a = new Audio(target.audio);
+      const a = AssetLoader.audioCache[target.audio] || new Audio(target.audio);
+      a.currentTime = 0; /* reset in case already played */
       /* Guard: only trigger TTS once even if both error and catch fire */
       let ttsUsed = false;
       const fallback = () => {
@@ -1836,7 +1843,7 @@ const GameController = {
         Snd.speak(target.word);
         if (btn) btn.classList.remove("invite");
       };
-      a.addEventListener("error", fallback);
+      a.addEventListener("error", fallback, { once: true });
       const p = a.play();
       if (p !== undefined) {
         p.then(() => { if (btn) btn.classList.remove("invite"); })
