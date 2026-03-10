@@ -771,14 +771,6 @@ body::after {
 .btn-hof-play:hover  { transform: translateY(-2px); }
 .btn-hof-play:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); border-bottom-width: 2px; }
 
-.btn-clear-lb {
-  background: none; border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 8px; padding: 8px 20px;
-  font-family: var(--font); font-size: 0.72rem; font-weight: 700;
-  color: var(--text-dim); cursor: pointer; letter-spacing: 1px;
-  transition: color 0.2s, border-color 0.2s;
-}
-.btn-clear-lb:hover { color: var(--neon-red); border-color: var(--neon-red); }
 
 /* ── QR Code widget ── */
 #qr-widget {
@@ -902,7 +894,6 @@ body::after {
   <div class="hof-list" id="hof-list"></div>
   <div class="hof-btn-row">
     <button class="btn-hof-play" onclick="showNameEntry()">▶ &nbsp;PLAY NOW</button>
-    <button class="btn-clear-lb" onclick="clearLeaderboard()">🗑 Clear Leaderboard</button>
   </div>
 </div>
 
@@ -1079,10 +1070,6 @@ const CloudManager = {
       });
   },
 
-  clearAll() {
-    /* Leaderboard is cloud-only; only clear local PB cache if desired */
-    try { localStorage.removeItem(this._pbKey()); } catch (_) {}
-  },
 };
 
 
@@ -1779,12 +1766,6 @@ const GameController = {
     });
   },
 
-  clearLeaderboard() {
-    if (!confirm("Clear the whole leaderboard? This can't be undone.")) return;
-    CloudManager.clearAll();
-    this.showHallOfFame();
-  },
-
   /* ─── Game Start ───────────────────────────────────────────── */
 
   startGame() {
@@ -2036,7 +2017,6 @@ function onNameInput()          { GameController.onNameInput(); }
 function onNameKey(e)           { GameController.onNameKey(e); }
 function startGameForPlayer()   { GameController.startGameForPlayer(); }
 function showHallOfFame(h)      { GameController.showHallOfFame(h); }
-function clearLeaderboard()     { GameController.clearLeaderboard(); }
 
 
 /* ================================================================
