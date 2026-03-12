@@ -75,11 +75,33 @@ Oxford Discover Vocab Master_Project/
 ├── images/
 │   ├── chick.jpg
 │   ├── crab.jpg
-│   └── ...             ← one image per vocabulary word
+│   ├── eagle.jpg
+│   ├── field.jpg
+│   ├── frog.jpg
+│   ├── hive.jpg
+│   ├── honeybee.jpg
+│   ├── mouse.jpg
+│   ├── nest.jpg
+│   ├── opossum.jpg
+│   ├── pond.jpg
+│   ├── squirrel.jpg
+│   ├── tree_hollow.jpg
+│   └── woods.jpg
 └── audio/
     ├── chick.mp3
     ├── crab.mp3
-    └── ...             ← one audio pronunciation file per word
+    ├── eagle.mp3
+    ├── field.mp3
+    ├── frog.mp3
+    ├── hive.mp3
+    ├── honeybee.mp3
+    ├── mouse.mp3
+    ├── nest.mp3
+    ├── opossum.mp3
+    ├── pond.mp3
+    ├── squirrel.mp3
+    ├── tree_hollow.mp3
+    └── woods.mp3
 ```
 
 > Asset paths are **relative**. Keep `images/` and `audio/` next to `index.html` and the game works with no configuration.
